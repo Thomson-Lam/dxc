@@ -35,3 +35,16 @@ fn parses_full_apply_command() {
         }
     );
 }
+
+#[test]
+fn parses_health_command() {
+    let command = dxc::parse_args(["dxc", "--manifest", "/tmp/dxc.json", "--health"])
+        .expect("health args should parse");
+
+    assert_eq!(
+        command,
+        dxc::Command::Health {
+            manifest: PathBuf::from("/tmp/dxc.json"),
+        }
+    );
+}

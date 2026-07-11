@@ -14,6 +14,7 @@ pub enum DxcError {
     MissingArgument(&'static str),
     UnknownArgument(String),
     InvalidArguments(String),
+    HealthFailed(String),
 }
 
 impl From<std::io::Error> for DxcError {
@@ -38,10 +39,17 @@ pub enum Command {
     FullApply {
         manifest: PathBuf,
     },
+    Health {
+        manifest: PathBuf,
+    },
 }
 
 #[derive(Deserialize)]
 struct Manifest {
+    #[serde(default)]
+    backup_dir: Option<String>,
+    #[serde(default)]
+    health_dir: Option<String>,
     sources: HashMap<String, String>,
     #[serde(default)]
     full_apply: Vec<FullApplyEntry>,
@@ -62,6 +70,7 @@ where
     let mut source: Option<String> = None;
     let mut dest: Option<PathBuf> = None;
     let mut full_apply = false;
+    let mut health = false;
 
     let mut args = args.into_iter().map(Into::into);
     let _program = args.next();
@@ -83,8 +92,26 @@ where
             "--full-apply" => {
                 full_apply = true;
             }
+            "--health" => {
+                health = true;
+            }
             _ => return Err(DxcError::UnknownArgument(arg)),
         }
+    }
+
+    if full_apply && health {
+        return Err(DxcError::InvalidArguments(
+            "--full-apply cannot be combined with --health".to_string(),
+        ));
+    }
+
+    if health {
+        if source.is_some() || dest.is_some() {
+            return Err(DxcError::InvalidArguments(
+                "--health cannot be combined with --source or --dest".to_string(),
+            ));
+        }
+        return Ok(Command::Health { manifest });
     }
 
     if full_apply {
@@ -168,8 +195,16 @@ where
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
-    let backup_root = backup_root_for_timestamp(&home_dir(), timestamp);
-    run_args_with_backup_root(args, &backup_root)
+    run_args_with_timestamp(args, timestamp)
+}
+
+pub fn run_args_with_timestamp<I, S>(args: I, timestamp: u64) -> Result<(), DxcError>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    let command = parse_args(args)?;
+    run_command_with_timestamp(command, timestamp)
 }
 
 pub fn run_args_with_backup_root<I, S>(args: I, backup_root: &Path) -> Result<(), DxcError>
@@ -181,9 +216,21 @@ where
     run_command_with_backup_root(command, backup_root)
 }
 
-pub fn backup_root_for_timestamp(home: &Path, timestamp: u64) -> PathBuf {
-    home.join(".local/state/dxc/backups")
-        .join(timestamp.to_string())
+pub fn backup_root_from_manifest_for_timestamp(
+    manifest_path: &Path,
+    timestamp: u64,
+) -> Result<PathBuf, DxcError> {
+    backup_root_from_manifest(manifest_path, timestamp)
+}
+
+pub fn run_command_with_timestamp(command: Command, timestamp: u64) -> Result<(), DxcError> {
+    if let Command::Health { manifest } = command {
+        return run_health_with_timestamp(&manifest, timestamp);
+    }
+
+    let manifest_path = command.manifest_path();
+    let backup_root = backup_root_from_manifest(manifest_path, timestamp)?;
+    run_command_with_backup_root(command, &backup_root)
 }
 
 pub fn run_command_with_backup_root(command: Command, backup_root: &Path) -> Result<(), DxcError> {
@@ -199,12 +246,117 @@ pub fn run_command_with_backup_root(command: Command, backup_root: &Path) -> Res
         Command::FullApply { manifest } => {
             full_apply_from_manifest_with_backup_root(&manifest, backup_root)
         }
+        Command::Health { manifest } => run_health_with_timestamp(&manifest, 0),
+    }
+}
+
+impl Command {
+    fn manifest_path(&self) -> &Path {
+        match self {
+            Command::ApplyOne { manifest, .. } => manifest,
+            Command::FullApply { manifest } => manifest,
+            Command::Health { manifest } => manifest,
+        }
     }
 }
 
 fn read_manifest(manifest_path: &Path) -> Result<Manifest, DxcError> {
     let manifest_text = fs::read_to_string(manifest_path)?;
     Ok(serde_json::from_str(&manifest_text)?)
+}
+
+fn backup_root_from_manifest(manifest_path: &Path, timestamp: u64) -> Result<PathBuf, DxcError> {
+    let manifest = read_manifest(manifest_path)?;
+    let manifest_dir = manifest_dir(manifest_path)?;
+
+    let backup_base = match manifest.backup_dir {
+        Some(path) => resolve_manifest_path(manifest_dir, Path::new(&path)),
+        None => manifest_dir.join(".dxc/backups"),
+    };
+
+    Ok(backup_base.join(timestamp.to_string()))
+}
+
+fn health_root_from_manifest(manifest_path: &Path, timestamp: u64) -> Result<PathBuf, DxcError> {
+    let manifest = read_manifest(manifest_path)?;
+    let manifest_dir = manifest_dir(manifest_path)?;
+
+    let health_base = match manifest.health_dir {
+        Some(path) => resolve_manifest_path(manifest_dir, Path::new(&path)),
+        None => manifest_dir.join(".dxc/health"),
+    };
+
+    Ok(health_base.join(timestamp.to_string()))
+}
+
+fn run_health_with_timestamp(manifest_path: &Path, timestamp: u64) -> Result<(), DxcError> {
+    let health_root = health_root_from_manifest(manifest_path, timestamp)?;
+    let files_dir = health_root.join("files");
+    fs::create_dir_all(&files_dir)?;
+
+    let source = files_dir.join("zshrc");
+    fs::write(&source, "dxc health new config\n")?;
+
+    let dest = health_root.join("home/.zshrc");
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&dest, "dxc health old config\n")?;
+
+    let health_manifest = health_root.join("dxc-health.json");
+    fs::write(
+        &health_manifest,
+        r#"{
+          "backup_dir": ".dxc/backups",
+          "health_dir": ".dxc/health",
+          "sources": {
+            "zsh": "files/zshrc"
+          },
+          "full_apply": []
+        }"#,
+    )?;
+
+    let backup_root = health_root.join(".dxc/backups").join(timestamp.to_string());
+    apply_source_from_manifest_with_backup_root(&health_manifest, "zsh", &dest, &backup_root)?;
+
+    let written = fs::read_to_string(&dest)?;
+    if written != "dxc health new config\n" {
+        return Err(DxcError::HealthFailed(
+            "health destination did not contain expected content".to_string(),
+        ));
+    }
+
+    let backup_path = backup_root.join(dest.strip_prefix("/").unwrap_or(&dest));
+    let backup = fs::read_to_string(backup_path)?;
+    if backup != "dxc health old config\n" {
+        return Err(DxcError::HealthFailed(
+            "health backup did not contain expected content".to_string(),
+        ));
+    }
+
+    if health_root.join("~").exists() {
+        return Err(DxcError::HealthFailed(
+            "health created a literal tilde directory".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn manifest_dir(manifest_path: &Path) -> Result<&Path, DxcError> {
+    manifest_path
+        .parent()
+        .ok_or_else(|| DxcError::ManifestHasNoParent(manifest_path.to_path_buf()))
+}
+
+fn resolve_manifest_path(manifest_dir: &Path, path: &Path) -> PathBuf {
+    let expanded = expand_tilde(path);
+
+    if expanded.is_absolute() {
+        expanded
+    } else {
+        manifest_dir.join(expanded)
+    }
 }
 
 fn apply_source(
@@ -214,6 +366,7 @@ fn apply_source(
     dest: &Path,
     backup_root: Option<&Path>,
 ) -> Result<(), DxcError> {
+    let dest = expand_tilde(dest);
     let source = manifest
         .sources
         .get(source_name)
@@ -225,14 +378,14 @@ fn apply_source(
     let source_path = manifest_dir.join(source);
 
     if let Some(backup_root) = backup_root {
-        backup_existing_destination(dest, backup_root)?;
+        backup_existing_destination(&dest, backup_root)?;
     }
 
     if let Some(parent) = dest.parent() {
         fs::create_dir_all(parent)?;
     }
 
-    fs::copy(source_path, dest)?;
+    fs::copy(source_path, &dest)?;
     Ok(())
 }
 

@@ -22,15 +22,21 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 }
 
 #[test]
-fn backs_up_existing_destination_before_overwriting() {
-    let root = sandbox("backup");
+fn manifest_backup_dir_controls_cli_backup_location() {
+    let root = sandbox("manifest-backup-dir");
     fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
     fs::write(root.join("files/zsh/zshrc"), "new config\n").expect("source should be written");
+
+    let dest = root.join("home/.zshrc");
+    fs::create_dir_all(dest.parent().expect("destination should have parent"))
+        .expect("destination parent should be created");
+    fs::write(&dest, "old config\n").expect("existing destination should be written");
 
     let manifest = root.join("dxc.json");
     fs::write(
         &manifest,
         r#"{
+          "backup_dir": ".dxc/custom-backups",
           "sources": {
             "zsh": "files/zsh/zshrc"
           },
@@ -39,22 +45,27 @@ fn backs_up_existing_destination_before_overwriting() {
     )
     .expect("manifest should be written");
 
-    let dest = root.join("home/.zshrc");
-    fs::create_dir_all(dest.parent().expect("destination should have parent"))
-        .expect("destination parent should be created");
-    fs::write(&dest, "old config\n").expect("existing destination should be written");
+    dxc::run_args_with_timestamp(
+        [
+            "dxc".to_string(),
+            "--manifest".to_string(),
+            manifest.display().to_string(),
+            "--source".to_string(),
+            "zsh".to_string(),
+            "--dest".to_string(),
+            dest.display().to_string(),
+        ],
+        777,
+    )
+    .expect("command should run successfully");
 
-    let backup_root = root.join("backups");
-
-    dxc::apply_source_from_manifest_with_backup_root(&manifest, "zsh", &dest, &backup_root)
-        .expect("apply should succeed");
-
-    assert_eq!(
-        fs::read_to_string(&dest).expect("destination should be overwritten"),
-        "new config\n"
-    );
+    let backup_root = root.join(".dxc/custom-backups/777");
     assert_eq!(
         fs::read_to_string(backup_path_for(&backup_root, &dest)).expect("backup should exist"),
         "old config\n"
+    );
+    assert_eq!(
+        fs::read_to_string(&dest).expect("destination should be overwritten"),
+        "new config\n"
     );
 }

@@ -22,10 +22,16 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 }
 
 #[test]
-fn run_apply_one_command_copies_source_and_backs_up_existing_destination() {
-    let root = sandbox("run-apply-one");
+fn omitted_backup_dir_defaults_to_manifest_dir_dxc_backups() {
+    let root = sandbox("default-backup-dir");
     fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "new zshrc\n").expect("source should be written");
+    fs::write(root.join("files/zsh/zshrc"), "new default backup\n")
+        .expect("source should be written");
+
+    let dest = root.join("home/.zshrc");
+    fs::create_dir_all(dest.parent().expect("destination should have parent"))
+        .expect("destination parent should be created");
+    fs::write(&dest, "old default backup\n").expect("existing destination should be written");
 
     let manifest = root.join("dxc.json");
     fs::write(
@@ -39,29 +45,23 @@ fn run_apply_one_command_copies_source_and_backs_up_existing_destination() {
     )
     .expect("manifest should be written");
 
-    let dest = root.join("home/.zshrc");
-    fs::create_dir_all(dest.parent().expect("destination should have parent"))
-        .expect("destination parent should be created");
-    fs::write(&dest, "old zshrc\n").expect("old destination should be written");
-
-    let backup_root = root.join("backups");
-
-    dxc::run_command_with_backup_root(
-        dxc::Command::ApplyOne {
-            manifest,
-            source: "zsh".to_string(),
-            dest: dest.clone(),
-        },
-        &backup_root,
+    dxc::run_args_with_timestamp(
+        [
+            "dxc".to_string(),
+            "--manifest".to_string(),
+            manifest.display().to_string(),
+            "--source".to_string(),
+            "zsh".to_string(),
+            "--dest".to_string(),
+            dest.display().to_string(),
+        ],
+        888,
     )
     .expect("command should run successfully");
 
-    assert_eq!(
-        fs::read_to_string(&dest).expect("destination should be overwritten"),
-        "new zshrc\n"
-    );
+    let backup_root = root.join(".dxc/backups/888");
     assert_eq!(
         fs::read_to_string(backup_path_for(&backup_root, &dest)).expect("backup should exist"),
-        "old zshrc\n"
+        "old default backup\n"
     );
 }
