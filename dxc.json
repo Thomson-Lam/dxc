@@ -1,0 +1,40 @@
+{
+  "backup_dir": ".dxc/backups",
+  "health_dir": ".dxc/health",
+  "devices": {
+    "omarchy": {
+      "sources": {
+        "zsh": "omarchy/zsh/zshrc"
+      },
+      "full_apply": [
+        {
+          "source": "zsh",
+          "dest": "~/.zshrc"
+        }
+      ],
+      "full_ingest": [
+        {
+          "source": "zsh",
+          "from": "~/.zshrc"
+        }
+      ]
+    },
+    "mac": {
+      "sources": {
+        "zsh": "mac/zsh/zshrc"
+      },
+      "full_apply": [
+        {
+          "source": "zsh",
+          "dest": "~/.zshrc"
+        }
+      ],
+      "full_ingest": [
+        {
+          "source": "zsh",
+          "from": "~/.zshrc"
+        }
+      ]
+    }
+  }
+}

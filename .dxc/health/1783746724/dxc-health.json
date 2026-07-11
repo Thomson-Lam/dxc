@@ -1,0 +1,13 @@
+{
+          "backup_dir": ".dxc/backups",
+          "health_dir": ".dxc/health",
+          "devices": {
+            "omarchy": {
+              "sources": {
+                "zsh": "omarchy/zsh/zshrc"
+              },
+              "full_apply": [],
+              "full_ingest": []
+            }
+          }
+        }
