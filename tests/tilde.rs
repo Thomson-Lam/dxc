@@ -17,8 +17,8 @@ fn sandbox(name: &str) -> PathBuf {
 #[test]
 fn full_apply_expands_tilde_in_destinations() {
     let root = sandbox("tilde-full-apply");
-    fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "tilde destination\n")
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("source directory should be created");
+    fs::write(root.join("omarchy/zsh/zshrc"), "tilde destination\n")
         .expect("source should be written");
 
     let home = PathBuf::from("/home/tlam");
@@ -33,19 +33,23 @@ fn full_apply_expands_tilde_in_destinations() {
         &manifest,
         format!(
             r#"{{
-              "sources": {{
-                "zsh": "files/zsh/zshrc"
-              }},
-              "full_apply": [
-                {{ "source": "zsh", "dest": "{}" }}
-              ]
+              "devices": {{
+                "omarchy": {{
+                  "sources": {{
+                    "zsh": "omarchy/zsh/zshrc"
+                  }},
+                  "full_apply": [
+                    {{ "source": "zsh", "dest": "{}" }}
+                  ]
+                }}
+              }}
             }}"#,
             tilde_dest
         ),
     )
     .expect("manifest should be written");
 
-    dxc::full_apply_from_manifest(&manifest).expect("full apply should succeed");
+    dxc::full_apply_from_manifest(&manifest, "omarchy").expect("full apply should succeed");
 
     assert_eq!(
         fs::read_to_string(dest).expect("tilde-expanded destination should exist"),

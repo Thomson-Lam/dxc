@@ -24,8 +24,9 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 #[test]
 fn run_full_apply_backs_up_existing_destinations() {
     let root = sandbox("run-full-apply");
-    fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "new full apply\n").expect("source should be written");
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("source directory should be created");
+    fs::write(root.join("omarchy/zsh/zshrc"), "new full apply\n")
+        .expect("source should be written");
 
     let dest = root.join("home/.zshrc");
     fs::create_dir_all(dest.parent().expect("destination should have parent"))
@@ -37,12 +38,16 @@ fn run_full_apply_backs_up_existing_destinations() {
         &manifest,
         format!(
             r#"{{
-              "sources": {{
-                "zsh": "files/zsh/zshrc"
-              }},
-              "full_apply": [
-                {{ "source": "zsh", "dest": "{}" }}
-              ]
+              "devices": {{
+                "omarchy": {{
+                  "sources": {{
+                    "zsh": "omarchy/zsh/zshrc"
+                  }},
+                  "full_apply": [
+                    {{ "source": "zsh", "dest": "{}" }}
+                  ]
+                }}
+              }}
             }}"#,
             dest.display()
         ),
@@ -56,6 +61,8 @@ fn run_full_apply_backs_up_existing_destinations() {
             "dxc".to_string(),
             "--manifest".to_string(),
             manifest.display().to_string(),
+            "--device".to_string(),
+            "omarchy".to_string(),
             "--full-apply".to_string(),
         ],
         &backup_root,

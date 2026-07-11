@@ -24,17 +24,21 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 #[test]
 fn run_args_applies_source_dest_command() {
     let root = sandbox("run-args");
-    fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "from args\n").expect("source should be written");
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("source directory should be created");
+    fs::write(root.join("omarchy/zsh/zshrc"), "from args\n").expect("source should be written");
 
     let manifest = root.join("dxc.json");
     fs::write(
         &manifest,
         r#"{
-          "sources": {
-            "zsh": "files/zsh/zshrc"
-          },
-          "full_apply": []
+          "devices": {
+            "omarchy": {
+              "sources": {
+                "zsh": "omarchy/zsh/zshrc"
+              },
+              "full_apply": []
+            }
+          }
         }"#,
     )
     .expect("manifest should be written");
@@ -51,6 +55,8 @@ fn run_args_applies_source_dest_command() {
             "dxc".to_string(),
             "--manifest".to_string(),
             manifest.display().to_string(),
+            "--device".to_string(),
+            "omarchy".to_string(),
             "--source".to_string(),
             "zsh".to_string(),
             "--dest".to_string(),

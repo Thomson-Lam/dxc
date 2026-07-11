@@ -15,9 +15,9 @@ fn sandbox(name: &str) -> PathBuf {
 }
 
 #[test]
-fn applies_registered_source_to_requested_destination() {
+fn applies_registered_device_source_to_requested_destination() {
     let root = sandbox("apply-source");
-    let files_dir = root.join("files/zsh");
+    let files_dir = root.join("omarchy/zsh");
     fs::create_dir_all(&files_dir).expect("source directory should be created");
 
     let source_file = files_dir.join("zshrc");
@@ -27,17 +27,21 @@ fn applies_registered_source_to_requested_destination() {
     fs::write(
         &manifest,
         r#"{
-          "sources": {
-            "zsh": "files/zsh/zshrc"
-          },
-          "full_apply": []
+          "devices": {
+            "omarchy": {
+              "sources": {
+                "zsh": "omarchy/zsh/zshrc"
+              },
+              "full_apply": []
+            }
+          }
         }"#,
     )
     .expect("manifest fixture should be written");
 
     let dest = root.join("home/.zshrc");
 
-    dxc::apply_source_from_manifest(&manifest, "zsh", &dest)
+    dxc::apply_source_from_manifest(&manifest, "omarchy", "zsh", &dest)
         .expect("registered source should apply cleanly");
 
     let written = fs::read_to_string(dest).expect("destination file should exist");

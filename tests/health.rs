@@ -15,7 +15,7 @@ fn sandbox(name: &str) -> PathBuf {
 }
 
 #[test]
-fn health_uses_manifest_health_dir_for_sandbox_outputs() {
+fn health_uses_manifest_health_dir_for_sandbox_outputs_and_tests_ingest() {
     let root = sandbox("health");
     let manifest = root.join("dxc.json");
     fs::write(
@@ -23,8 +23,13 @@ fn health_uses_manifest_health_dir_for_sandbox_outputs() {
         r#"{
           "backup_dir": ".dxc/backups",
           "health_dir": ".dxc/health",
-          "sources": {},
-          "full_apply": []
+          "devices": {
+            "omarchy": {
+              "sources": {},
+              "full_apply": [],
+              "full_ingest": []
+            }
+          }
         }"#,
     )
     .expect("manifest should be written");
@@ -34,6 +39,8 @@ fn health_uses_manifest_health_dir_for_sandbox_outputs() {
             "dxc".to_string(),
             "--manifest".to_string(),
             manifest.display().to_string(),
+            "--device".to_string(),
+            "omarchy".to_string(),
             "--health".to_string(),
         ],
         999,
@@ -57,6 +64,11 @@ fn health_uses_manifest_health_dir_for_sandbox_outputs() {
         )
         .expect("health backup should exist"),
         "dxc health old config\n"
+    );
+    assert_eq!(
+        fs::read_to_string(health_root.join("omarchy/zsh/zshrc"))
+            .expect("health repo source should exist"),
+        "dxc health ingested config\n"
     );
     assert!(
         !health_root.join("~").exists(),

@@ -15,16 +15,16 @@ fn sandbox(name: &str) -> PathBuf {
 }
 
 #[test]
-fn full_apply_copies_all_manifest_entries() {
+fn full_apply_copies_all_manifest_entries_for_device() {
     let root = sandbox("full-apply");
-    fs::create_dir_all(root.join("files/zsh")).expect("zsh source directory should be created");
-    fs::create_dir_all(root.join("files/alacritty"))
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("zsh source directory should be created");
+    fs::create_dir_all(root.join("omarchy/alacritty"))
         .expect("alacritty source directory should be created");
 
-    fs::write(root.join("files/zsh/zshrc"), "export EDITOR=nvim\n")
+    fs::write(root.join("omarchy/zsh/zshrc"), "export EDITOR=nvim\n")
         .expect("zsh source should be written");
     fs::write(
-        root.join("files/alacritty/alacritty.toml"),
+        root.join("omarchy/alacritty/alacritty.toml"),
         "[window]\nopacity = 0.9\n",
     )
     .expect("alacritty source should be written");
@@ -37,14 +37,18 @@ fn full_apply_copies_all_manifest_entries() {
         &manifest,
         format!(
             r#"{{
-              "sources": {{
-                "zsh": "files/zsh/zshrc",
-                "alacritty": "files/alacritty/alacritty.toml"
-              }},
-              "full_apply": [
-                {{ "source": "zsh", "dest": "{}" }},
-                {{ "source": "alacritty", "dest": "{}" }}
-              ]
+              "devices": {{
+                "omarchy": {{
+                  "sources": {{
+                    "zsh": "omarchy/zsh/zshrc",
+                    "alacritty": "omarchy/alacritty/alacritty.toml"
+                  }},
+                  "full_apply": [
+                    {{ "source": "zsh", "dest": "{}" }},
+                    {{ "source": "alacritty", "dest": "{}" }}
+                  ]
+                }}
+              }}
             }}"#,
             zsh_dest.display(),
             alacritty_dest.display()
@@ -52,7 +56,7 @@ fn full_apply_copies_all_manifest_entries() {
     )
     .expect("manifest should be written");
 
-    dxc::full_apply_from_manifest(&manifest).expect("full apply should succeed");
+    dxc::full_apply_from_manifest(&manifest, "omarchy").expect("full apply should succeed");
 
     assert_eq!(
         fs::read_to_string(zsh_dest).expect("zsh destination should exist"),

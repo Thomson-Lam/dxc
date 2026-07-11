@@ -24,8 +24,8 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 #[test]
 fn manifest_backup_dir_controls_cli_backup_location() {
     let root = sandbox("manifest-backup-dir");
-    fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "new config\n").expect("source should be written");
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("source directory should be created");
+    fs::write(root.join("omarchy/zsh/zshrc"), "new config\n").expect("source should be written");
 
     let dest = root.join("home/.zshrc");
     fs::create_dir_all(dest.parent().expect("destination should have parent"))
@@ -37,10 +37,14 @@ fn manifest_backup_dir_controls_cli_backup_location() {
         &manifest,
         r#"{
           "backup_dir": ".dxc/custom-backups",
-          "sources": {
-            "zsh": "files/zsh/zshrc"
-          },
-          "full_apply": []
+          "devices": {
+            "omarchy": {
+              "sources": {
+                "zsh": "omarchy/zsh/zshrc"
+              },
+              "full_apply": []
+            }
+          }
         }"#,
     )
     .expect("manifest should be written");
@@ -50,6 +54,8 @@ fn manifest_backup_dir_controls_cli_backup_location() {
             "dxc".to_string(),
             "--manifest".to_string(),
             manifest.display().to_string(),
+            "--device".to_string(),
+            "omarchy".to_string(),
             "--source".to_string(),
             "zsh".to_string(),
             "--dest".to_string(),

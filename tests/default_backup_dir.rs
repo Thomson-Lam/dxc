@@ -24,8 +24,8 @@ fn backup_path_for(backup_root: &Path, dest: &Path) -> PathBuf {
 #[test]
 fn omitted_backup_dir_defaults_to_manifest_dir_dxc_backups() {
     let root = sandbox("default-backup-dir");
-    fs::create_dir_all(root.join("files/zsh")).expect("source directory should be created");
-    fs::write(root.join("files/zsh/zshrc"), "new default backup\n")
+    fs::create_dir_all(root.join("omarchy/zsh")).expect("source directory should be created");
+    fs::write(root.join("omarchy/zsh/zshrc"), "new default backup\n")
         .expect("source should be written");
 
     let dest = root.join("home/.zshrc");
@@ -37,10 +37,14 @@ fn omitted_backup_dir_defaults_to_manifest_dir_dxc_backups() {
     fs::write(
         &manifest,
         r#"{
-          "sources": {
-            "zsh": "files/zsh/zshrc"
-          },
-          "full_apply": []
+          "devices": {
+            "omarchy": {
+              "sources": {
+                "zsh": "omarchy/zsh/zshrc"
+              },
+              "full_apply": []
+            }
+          }
         }"#,
     )
     .expect("manifest should be written");
@@ -50,6 +54,8 @@ fn omitted_backup_dir_defaults_to_manifest_dir_dxc_backups() {
             "dxc".to_string(),
             "--manifest".to_string(),
             manifest.display().to_string(),
+            "--device".to_string(),
+            "omarchy".to_string(),
             "--source".to_string(),
             "zsh".to_string(),
             "--dest".to_string(),
