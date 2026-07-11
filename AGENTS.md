@@ -5,6 +5,8 @@
 1. Apply: apply configs that are git-tracked in this repo to the live config files after an Omarchy update to recover config file states and the corresponding behavuor for core application before an update.
 2. Ingest: take an existing live config file that you wish to preserve and re-apply after an Omarchy update. 
 
+Config files are preserved here in this repo and are git tracked, underneath `mac` for Mac configs, or `omarchy` for Omarchy configs. Mac configs are also tracked for user convenience.
+
 Components:
 - `src/main.rs` — Binary entry point; delegates CLI execution to `dxc::run_args` and exits nonzero on errors.
 - `src/lib.rs` — Core implementation for argument parsing, manifest loading, apply/ingest flows, health checks, help text, path resolution, and backup creation.
@@ -14,6 +16,12 @@ Components:
 - `src/lib.rs::apply_source` — Applies a device source mapping from the repo to a live destination, backing up existing destinations when a backup root is supplied.
 - `src/lib.rs::ingest_source` — Copies a live file into the mapped repo source path for a device; repo sources are not backed up.
 - `src/lib.rs::run_health_with_timestamp` — Sandboxed health check covering apply, backup, ingest, and literal-tilde regression behavior.
+- `dxc.json` — Root manifest that defines `backup_dir`, `health_dir`, and device-scoped source/apply/ingest mappings for `mac` and `omarchy`.
+- `omarchy/` — Tracked Omarchy config source tree populated by ingest; currently contains the preserved zsh config at `omarchy/zsh/zshrc` for applying back to `~/.zshrc`.
+- `mac/` — Reserved tracked macOS config source tree referenced by the manifest; intended to hold mac-specific config sources such as `mac/zsh/zshrc` when ingested or added.
+- `.dxc/` — CLI-owned runtime output directory for health checks and backups; this is generated state, not the human-authored config source tree.
+- `docs/README.md` — condensed documentation manual for skill invocation usage.
+- `README.md` — README intended for **human reading only**. Do not read this file unless instructed.
 
 Invariants:
 - Supported devices are currently only `mac` and `omarchy`.
@@ -34,5 +42,6 @@ Tests:
 
 Best practices:
 - Always use cargo when possible. If cargo is not available, report to the user and always advice using cargo before proceeding with builds and running the crate.
+- Always refer to the source code as the single source of truth, and assume that documentation is stale. Treat documentation regarding status and state of the codebase as a secondary citizen, and always read documentation after the code; do not assume that the documentation is always accurate and up to date.
 - Reduce the minimum amount of tests for this CLI, it is intended to be a minimal CLI handling I/O operations. All tests in this repo are intended to be included under `--health` for live checks and testing CLI behavior. An example of a good test includes verification of smoke tests and data flows from input to outputs and the corresponding paths, behavior of the CLI and units of the CLI, from argparse to core utils. An example of a bad test includes conditional tests that only make sense after a port intended to verify behavior that the ported code already supports as a canary test. If you are unsure, always consult the user.
 - The agent is only intended to a consultant for developing this CLI or for guidance on using this CLI for the user, not a full end-to-end command runner with no human in the loop. If asked by the user to run commands for them to apply configs or ingest a config, always confirm with the user that 1) they consent to the agent running a command; 2) clearly clarify and outline all of the flags, file paths, outputs produced and their corresponding paths of the resulting CLI invocation.
