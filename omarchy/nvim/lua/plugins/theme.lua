@@ -1,0 +1,1 @@
+/home/tlam/.config/omarchy/current/theme/neovim.lua

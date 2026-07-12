@@ -165,6 +165,45 @@ alias zj="zellij"
 alias nv="nvim"
 alias nconf="nvim ~/.config/nvim/init.lua"
 
+# Omarchy-style tmux dev layout.
+# Outside tmux: create/attach a project session and bootstrap the layout.
+# Inside tmux: create the agent + servers windows.
+td() {
+  local current_dir="${PWD}"
+  local project_name session_name
+  local pi_pane servers_left_pane
+
+  project_name="$(basename "$current_dir")"
+  session_name="$(printf '%s' "$project_name" | tr '.:' '--')"
+
+  if [[ -z $TMUX ]]; then
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+      tmux attach -t "$session_name"
+    else
+      tmux new-session -d -s "$session_name" -c "$current_dir"
+      tmux send-keys -t "$session_name" "td" C-m
+      tmux attach -t "$session_name"
+    fi
+    return
+  fi
+
+  # Use TMUX_PANE for the pane we're running in (stable even if active window changes).
+  # This pane becomes the full agent window.
+  pi_pane="$TMUX_PANE"
+
+  # Window 1: pure pi coding-agent workspace.
+  tmux rename-window -t "$pi_pane" "${project_name}-agent"
+  tmux set-option -pt "$pi_pane" @tdl_role pi
+
+  # Window 2: server workspace, split left/right with plain shells.
+  servers_left_pane=$(tmux new-window -d -n "${project_name}-servers" -c "$current_dir" -P -F '#{pane_id}')
+  tmux split-window -h -p 50 -t "$servers_left_pane" -c "$current_dir"
+
+  # Launch pi in the agent window and focus it.
+  tmux send-keys -t "$pi_pane" "pi" C-m
+  tmux select-pane -t "$pi_pane"
+}
+
 # ----- Aliases: AI tools --------------------------------------------------
 alias gem="gemini"
 alias ca="cursor-agent"

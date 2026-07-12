@@ -1,1 +1,0 @@
-dxc health old config
