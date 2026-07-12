@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+popup_singleton() {
+  local name="$1"
+  shift
+  local opt="@tdl_popup_${name}"
+  local cmd="$*"
+
+  if [[ "$(tmux show-option -gqv "$opt" 2>/dev/null || true)" == "1" ]]; then
+    tmux display-message "${name} popup already open"
+    exit 0
+  fi
+
+  tmux display-popup -E -x C -y C -w 98% -h 95% -d "#{pane_current_path}" \
+    "tmux set-option -gq ${opt} 1; trap 'tmux set-option -gu ${opt} 2>/dev/null || true' EXIT; ${cmd}"
+}
+
+lazygit_toggle() {
+  local window="${1:-$(tmux display-message -p '#{window_id}')}"
+  local current_path="${2:-$(tmux display-message -p '#{pane_current_path}')}"
+  local pane role cmd
+
+  while IFS='|' read -r pane role cmd; do
+    if [[ "$role" == "lazygit" || "$cmd" == "lazygit" ]]; then
+      tmux kill-pane -t "$pane"
+      exit 0
+    fi
+  done < <(tmux list-panes -t "$window" -F '#{pane_id}|#{@tdl_role}|#{pane_current_command}')
+
+  pane="$(tmux split-window -v -c "$current_path" -P -F '#{pane_id}' lazygit)"
+  tmux set-option -pt "$pane" @tdl_role lazygit
+}
+
+case "${1:-}" in
+  popup-nvim) popup_singleton nvim '"${EDITOR:-nvim}" .' ;;
+  lazygit-toggle) lazygit_toggle "${2:-}" "${3:-}" ;;
+  *) echo "Usage: tmux-tdl-ui popup-nvim|lazygit-toggle" >&2; exit 1 ;;
+esac

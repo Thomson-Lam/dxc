@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "Usage: tmux-tdl-pane choose <side|down> <target-pane> <window-name> <session> | choose-then-placement <target-pane> <window-name> <session> | placement-menu <source-pane> <target-pane> <window-name> <session> | join-pending <side|down> | choose-placement <v|h> <target-pane> <window-name> <session> | join <side|down> <source-pane> <target-pane> | join-placement <v|h> <source-pane> <target-pane> | back <pane> | reset <window>" >&2
+}
+
+servers_window_for() {
+  local window="$1"
+  local base="$window"
+  base="${base%-agent}"
+  base="${base%-servers}"
+  printf '%s-servers' "$base"
+}
+
+quote() {
+  printf '%q' "$1"
+}
+
+choose_pane() {
+  local direction="$1"
+  local target_pane="$2"
+  local window_name="$3"
+  local session="$4"
+  local servers_window
+  servers_window="$(servers_window_for "$window_name")"
+
+  if ! tmux list-panes -t "${session}:${servers_window}" >/dev/null 2>&1; then
+    tmux display-message "No servers window: ${servers_window}"
+    exit 0
+  fi
+
+  local -a menu
+  menu=(-T "Bring server pane ${direction}")
+
+  local i=1
+  local line pane_id pane_index pane_cmd pane_current_path label cmd
+  while IFS='|' read -r pane_id pane_index pane_cmd pane_current_path; do
+    [[ -z "$pane_id" ]] && continue
+    label="${pane_index}: ${pane_cmd} — ${pane_current_path/#$HOME/~}"
+    cmd="run-shell \"$HOME/.local/bin/tmux-tdl-pane join $(quote "$direction") $(quote "$pane_id") $(quote "$target_pane")\""
+    menu+=("$label" "$i" "$cmd")
+    ((i++))
+    ((i > 9)) && break
+  done < <(tmux list-panes -t "${session}:${servers_window}" -F '#{pane_id}|#{pane_index}|#{pane_current_command}|#{pane_current_path}')
+
+  if (( ${#menu[@]} <= 2 )); then
+    tmux display-message "No panes in ${servers_window}"
+    exit 0
+  fi
+
+  tmux display-menu "${menu[@]}"
+}
+
+direction_from_placement() {
+  local placement="$1"
+  case "${placement:0:1}" in
+    v|V|"") printf 'side' ;;
+    h|H) printf 'down' ;;
+    *) return 1 ;;
+  esac
+}
+
+choose_placement() {
+  local placement="$1"
+  local target_pane="$2"
+  local window_name="$3"
+  local session="$4"
+  local direction
+
+  if ! direction="$(direction_from_placement "$placement")"; then
+    tmux display-message "Use v for side/vertical or h for bottom/horizontal"
+    exit 0
+  fi
+
+  choose_pane "$direction" "$target_pane" "$window_name" "$session"
+}
+
+choose_then_placement() {
+  local target_pane="$1"
+  local window_name="$2"
+  local session="$3"
+  local servers_window
+  servers_window="$(servers_window_for "$window_name")"
+
+  if ! tmux list-panes -t "${session}:${servers_window}" >/dev/null 2>&1; then
+    tmux display-message "No servers window: ${servers_window}"
+    exit 0
+  fi
+
+  local -a menu
+  menu=(-T "Import server pane — Esc/q cancels")
+
+  local i=1
+  local pane_id pane_index pane_cmd pane_current_path label cmd
+  while IFS='|' read -r pane_id pane_index pane_cmd pane_current_path; do
+    [[ -z "$pane_id" ]] && continue
+    label="${pane_index}: ${pane_cmd} — ${pane_current_path/#$HOME/~}"
+    cmd="run-shell \"$HOME/.local/bin/tmux-tdl-pane placement-menu $(quote "$pane_id") $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
+    menu+=("$label" "$i" "$cmd")
+    ((i++))
+    ((i > 9)) && break
+  done < <(tmux list-panes -t "${session}:${servers_window}" -F '#{pane_id}|#{pane_index}|#{pane_current_command}|#{pane_current_path}')
+
+  if (( ${#menu[@]} <= 2 )); then
+    tmux display-message "No panes in ${servers_window}"
+    exit 0
+  fi
+
+  tmux display-menu "${menu[@]}"
+}
+
+placement_menu() {
+  local source_pane="$1"
+  local target_pane="$2"
+  local window_name="$3"
+  local session="$4"
+
+  # Store pending pane ids in tmux options so the placement menu command does not
+  # need to carry pane ids like %0/%1 through another round of tmux parsing.
+  tmux set-option -gq @tdl_import_source "$source_pane"
+  tmux set-option -gq @tdl_import_target "$target_pane"
+
+  tmux display-menu -T "Placement — b back" \
+    "Side / vertical split" "v" "run-shell '$HOME/.local/bin/tmux-tdl-pane join-pending side'" \
+    "Bottom / horizontal split" "h" "run-shell '$HOME/.local/bin/tmux-tdl-pane join-pending down'" \
+    "Back to pane selection" "b" "run-shell \"$HOME/.local/bin/tmux-tdl-pane choose-then-placement $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
+}
+
+join_pending() {
+  local direction="$1"
+  local source_pane target_pane
+
+  source_pane="$(tmux show-option -gqv @tdl_import_source 2>/dev/null || true)"
+  target_pane="$(tmux show-option -gqv @tdl_import_target 2>/dev/null || true)"
+
+  tmux set-option -gu @tdl_import_source 2>/dev/null || true
+  tmux set-option -gu @tdl_import_target 2>/dev/null || true
+
+  if [[ -z "$source_pane" || -z "$target_pane" ]]; then
+    tmux display-message "No pending server pane import"
+    exit 0
+  fi
+
+  join_pane "$direction" "$source_pane" "$target_pane"
+}
+
+join_placement() {
+  local placement="$1"
+  local source_pane="$2"
+  local target_pane="$3"
+  local direction
+
+  if ! direction="$(direction_from_placement "$placement")"; then
+    tmux display-message "Use v for side/vertical or h for bottom/horizontal"
+    exit 0
+  fi
+
+  join_pane "$direction" "$source_pane" "$target_pane"
+}
+
+join_pane() {
+  local direction="$1"
+  local source_pane="$2"
+  local target_pane="$3"
+  local origin_window origin_index
+
+  if ! tmux display-message -p -t "$source_pane" '#{pane_id}' >/dev/null 2>&1; then
+    tmux display-message "Pane not found: ${source_pane}"
+    exit 0
+  fi
+
+  origin_window="$(tmux display-message -p -t "$source_pane" '#{window_id}')"
+  origin_index="$(tmux display-message -p -t "$source_pane" '#{pane_index}')"
+  tmux set-option -pt "$source_pane" @tdl_origin_window "$origin_window"
+  tmux set-option -pt "$source_pane" @tdl_origin_index "$origin_index"
+
+  case "$direction" in
+    side) tmux join-pane -h -s "$source_pane" -t "$target_pane" ;;
+    down) tmux join-pane -v -s "$source_pane" -t "$target_pane" ;;
+    *) usage; exit 1 ;;
+  esac
+}
+
+back_pane() {
+  local pane="$1"
+  local origin_window target_pane current_window
+
+  current_window="$(tmux display-message -p -t "$pane" '#{window_id}' 2>/dev/null || true)"
+  origin_window="$(tmux show-option -pqv -t "$pane" @tdl_origin_window 2>/dev/null || true)"
+  if [[ -z "$origin_window" ]]; then
+    tmux display-message "Current pane has no saved servers origin"
+    exit 0
+  fi
+
+  target_pane="$(tmux list-panes -t "$origin_window" -F '#{pane_id}' 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$target_pane" ]]; then
+    tmux display-message "Origin window not found"
+    exit 0
+  fi
+
+  tmux set-option -pt "$pane" -u @tdl_origin_window 2>/dev/null || true
+  tmux set-option -pt "$pane" -u @tdl_origin_index 2>/dev/null || true
+  tmux join-pane -h -s "$pane" -t "$target_pane"
+  tmux select-layout -t "$origin_window" even-horizontal >/dev/null 2>&1 || true
+  # join-pane can move focus to the origin servers window; return to where back was invoked.
+  [[ -n "$current_window" ]] && tmux select-window -t "$current_window" >/dev/null 2>&1 || true
+}
+
+reset_window() {
+  local window="$1"
+  local pane origin_window target_pane
+  local moved=0
+
+  while IFS= read -r pane; do
+    origin_window="$(tmux show-option -pqv -t "$pane" @tdl_origin_window 2>/dev/null || true)"
+    [[ -z "$origin_window" ]] && continue
+    target_pane="$(tmux list-panes -t "$origin_window" -F '#{pane_id}' 2>/dev/null | head -n 1 || true)"
+    [[ -z "$target_pane" ]] && continue
+    tmux set-option -pt "$pane" -u @tdl_origin_window 2>/dev/null || true
+    tmux set-option -pt "$pane" -u @tdl_origin_index 2>/dev/null || true
+    tmux join-pane -h -s "$pane" -t "$target_pane"
+    tmux select-layout -t "$origin_window" even-horizontal >/dev/null 2>&1 || true
+    moved=$((moved + 1))
+  done < <(tmux list-panes -t "$window" -F '#{pane_id}')
+
+  # join-pane can move focus to the servers window; return to the window where reset was invoked.
+  tmux select-window -t "$window" >/dev/null 2>&1 || true
+  tmux display-message "Reset ${moved} server pane(s)"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  choose) [[ $# -eq 5 ]] || { usage; exit 1; }; choose_pane "$2" "$3" "$4" "$5" ;;
+  choose-then-placement) [[ $# -eq 4 ]] || { usage; exit 1; }; choose_then_placement "$2" "$3" "$4" ;;
+  placement-menu) [[ $# -eq 5 ]] || { usage; exit 1; }; placement_menu "$2" "$3" "$4" "$5" ;;
+  join-pending) [[ $# -eq 2 ]] || { usage; exit 1; }; join_pending "$2" ;;
+  choose-placement) [[ $# -eq 5 ]] || { usage; exit 1; }; choose_placement "$2" "$3" "$4" "$5" ;;
+  join) [[ $# -eq 4 ]] || { usage; exit 1; }; join_pane "$2" "$3" "$4" ;;
+  join-placement) [[ $# -eq 4 ]] || { usage; exit 1; }; join_placement "$2" "$3" "$4" ;;
+  back) [[ $# -eq 2 ]] || { usage; exit 1; }; back_pane "$2" ;;
+  reset) [[ $# -eq 2 ]] || { usage; exit 1; }; reset_window "$2" ;;
+  *) usage; exit 1 ;;
+esac
