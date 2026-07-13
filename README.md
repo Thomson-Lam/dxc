@@ -1,10 +1,10 @@
 # DXc (DX convenience): minimal config files for multiple setups in one place
 
-Got tired of having too many dotfile repos and configs for different devices and trying to get the same preferred workflow on different devices with different behaviors (Mac vs Arch vs Omarchy), so decided to do things the stupid/hacky way and dump every code config file into one git repo. Likely not the cleanest way of doing things but the fastest and easiest way for me, without any symlink or scripting setup for the same config files intended to work on multiple different devices/distros with different behaviors, and I personally found it intuitive to simply apply a config conservatively is to just use `cp`, for using in both Mac and environments with update overrides like in Omarchy with omarchy-update.
+Got tired of having too many dotfile repos and configs for different devices and trying to get the same preferred workflow on different devices with different behaviors, so I decided to do things the stupid/hacky way and dump every code config file into one git repo. Likely not the cleanest way of doing things but the fastest and easiest way for me, without any symlink or scripting setup for the same config files intended to work everywhere, and I personally found it intuitive to simply apply a config conservatively using `cp` which is guaranteed to work on every system, for using in both Mac, Arch and environments with update overrides like in Omarchy with omarchy-update.
 
 This is not some cool CLI or script to resolve config profiles or whatever, just configs dumped into a single git repo for quick and dirty config management to get the job done.
 
-Usage - make sure you back up existing config files:
+Usage: make sure you back up existing config files:
 
 1. Apply config over to current config: `cp <file path in repo> <destination in .config to use>`
 2. Ingest existing config to track: `cp -r <config folder> <path in repo>`
