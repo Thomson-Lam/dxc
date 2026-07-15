@@ -211,6 +211,7 @@ alias oc="opencode"
 alias cod="codex"
 alias cl="claude"
 alias co="claude --model moonshotai/kimi-k2.5"
+alias pir='pi --startup-command "/telescope sessions"'
 
 # ----- Aliases: package/dev tools ----------------------------------------
 alias pd="pnpm dev"
