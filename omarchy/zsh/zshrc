@@ -212,6 +212,8 @@ alias cod="codex"
 alias cl="claude"
 alias co="claude --model moonshotai/kimi-k2.5"
 alias pir='pi --startup-command "/telescope sessions"'
+alias pim="pi --muon-mode build"
+alias pis="pi --muon-mode spec"
 
 # ----- Aliases: package/dev tools ----------------------------------------
 alias pd="pnpm dev"
