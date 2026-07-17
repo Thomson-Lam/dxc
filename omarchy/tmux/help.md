@@ -22,7 +22,8 @@
 
 - `Prefix e` — open `$EDITOR .` / Neovim in a large centered popup; only one popup at a time
 - `Prefix g` — toggle `lazygit` in a bottom pane; pressing again closes it
-- `Prefix z` — open `$SHELL` / zsh in a large centered popup
+- `Prefix z` — open `$SHELL` / zsh in a large centered popup (no tmux scrollback)
+- `Prefix Z` — open a scrollable `scratch` window in the current directory; exit the shell to close it
 
 ## Server pane workflow
 
@@ -88,7 +89,7 @@ Omarchy uses vi-style copy mode.
 Top-right status hints:
 
 ```text
-(1) [?]=help [e]=nvim [g]=git [z]=zsh | (2) [i]=import [B]=back [A]=reset
+(1) [?]=help [e]=nvim [g]=git [z/Z]=zsh | (2) [i]=import [B]=back [A]=reset
 ```
 
 State indicators:

@@ -38,7 +38,7 @@ choose_pane() {
   while IFS='|' read -r pane_id pane_index pane_cmd pane_current_path; do
     [[ -z "$pane_id" ]] && continue
     label="${pane_index}: ${pane_cmd} — ${pane_current_path/#$HOME/~}"
-    cmd="run-shell \"$HOME/.local/bin/tmux-tdl-pane join $(quote "$direction") $(quote "$pane_id") $(quote "$target_pane")\""
+    cmd="run-shell \"$HOME/.config/tmux/scripts/tmux-tdl-pane join $(quote "$direction") $(quote "$pane_id") $(quote "$target_pane")\""
     menu+=("$label" "$i" "$cmd")
     ((i++))
     ((i > 9)) && break
@@ -96,7 +96,7 @@ choose_then_placement() {
   while IFS='|' read -r pane_id pane_index pane_cmd pane_current_path; do
     [[ -z "$pane_id" ]] && continue
     label="${pane_index}: ${pane_cmd} — ${pane_current_path/#$HOME/~}"
-    cmd="run-shell \"$HOME/.local/bin/tmux-tdl-pane placement-menu $(quote "$pane_id") $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
+    cmd="run-shell \"$HOME/.config/tmux/scripts/tmux-tdl-pane placement-menu $(quote "$pane_id") $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
     menu+=("$label" "$i" "$cmd")
     ((i++))
     ((i > 9)) && break
@@ -122,9 +122,9 @@ placement_menu() {
   tmux set-option -gq @tdl_import_target "$target_pane"
 
   tmux display-menu -T "Placement — b back" \
-    "Side / vertical split" "v" "run-shell '$HOME/.local/bin/tmux-tdl-pane join-pending side'" \
-    "Bottom / horizontal split" "h" "run-shell '$HOME/.local/bin/tmux-tdl-pane join-pending down'" \
-    "Back to pane selection" "b" "run-shell \"$HOME/.local/bin/tmux-tdl-pane choose-then-placement $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
+    "Side / vertical split" "v" "run-shell '$HOME/.config/tmux/scripts/tmux-tdl-pane join-pending side'" \
+    "Bottom / horizontal split" "h" "run-shell '$HOME/.config/tmux/scripts/tmux-tdl-pane join-pending down'" \
+    "Back to pane selection" "b" "run-shell \"$HOME/.config/tmux/scripts/tmux-tdl-pane choose-then-placement $(quote "$target_pane") $(quote "$window_name") $(quote "$session")\""
 }
 
 join_pending() {
