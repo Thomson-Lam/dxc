@@ -1,38 +1,52 @@
 # DXc (DX convenience): minimal config files for multiple setups in one place
 
-Got tired of having too many dotfile repos and configs for different devices and trying to get the same preferred workflow on different devices with different behaviors, so I decided to do things the stupid/hacky way and dump every code config file into one git repo. Likely not the cleanest way of doing things but the fastest and easiest way for me, without any symlink or scripting setup for the same config files intended to work everywhere, and I personally found it intuitive to simply apply a config conservatively using `cp` which is guaranteed to work on every system, for using in both Mac, Arch and environments with update overrides like in Omarchy with omarchy-update.
+Got tired of having too many dotfile repos and configs for different devices and trying to get the same preferred workflow on different devices with different behaviors, so I decided to do things the stupid/hacky way and dump every code config file into one git repo.
 
-This is not some cool CLI or script to resolve config profiles or whatever, just configs dumped into a single git repo for quick and dirty config management to get the job done.
+This is not some cool CLI or script to resolve config profiles or whatever, just configs dumped into a single git repo for quick and dirty config management. Apply configs conservatively with `cp`.
 
-Usage: make sure you back up existing config files:
+## Layout
 
-1. Apply config over to current config: `cp <file path in repo> <destination in .config to use>`
-2. Ingest existing config to track: `cp -r <config folder> <path in repo>`
+- `nvim/` — shared Neovim config used across machines
+- `omarchy/` — Omarchy-specific configs
+- `mac/` — Mac-specific configs
 
-## Tmux setup
+## Usage
 
-The tmux workflow is split across several files:
+Make sure you back up existing config files first.
 
-- `omarchy/tmux/tmux.conf` -> `~/.config/tmux/tmux.conf`
-- `omarchy/.local/bin/tmux-tdl-pane` -> `~/.local/bin/tmux-tdl-pane`
-- `omarchy/.local/bin/tmux-tdl-ui` -> `~/.local/bin/tmux-tdl-ui`
-- `omarchy/.local/share/tmux/help.md` -> `~/.local/share/tmux/help.md`
-- `omarchy/zsh/zshrc` -> `~/.zshrc` for the `td` launcher
-
-### Apply tmux setup to live system
-
-(example Omarchy) Run from the repo root:
+Apply config over to current config:
 
 ```bash
-mkdir -p ~/.config/tmux ~/.local/bin ~/.local/share/tmux
+cp <file path in repo> <destination>
+```
+
+Ingest existing config to track:
+
+```bash
+cp -r <config folder> <path in repo>
+```
+
+## Neovim setup
+
+Shared across Omarchy and Mac:
+
+```bash
+mkdir -p ~/.config
+mv ~/.config/nvim ~/.config/nvim.bak.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp -r nvim ~/.config/nvim
+```
+
+## Omarchy tmux/zsh setup
+
+```bash
+mkdir -p ~/.config/tmux
 
 cp omarchy/tmux/tmux.conf ~/.config/tmux/tmux.conf
-cp omarchy/.local/bin/tmux-tdl-pane ~/.local/bin/tmux-tdl-pane
-cp omarchy/.local/bin/tmux-tdl-ui ~/.local/bin/tmux-tdl-ui
-cp omarchy/.local/share/tmux/help.md ~/.local/share/tmux/help.md
+cp omarchy/tmux/help.md ~/.config/tmux/help.md
+cp -r omarchy/tmux/scripts ~/.config/tmux/scripts
 cp omarchy/zsh/zshrc ~/.zshrc
 
-chmod +x ~/.local/bin/tmux-tdl-pane ~/.local/bin/tmux-tdl-ui
+chmod +x ~/.config/tmux/scripts/tmux-tdl-pane ~/.config/tmux/scripts/tmux-tdl-ui
 ```
 
 Reload after applying:
@@ -41,36 +55,22 @@ Reload after applying:
 source ~/.zshrc
 ```
 
-Relaunch tmux.
-
-Or on Omarchy:
+Relaunch tmux, or on Omarchy:
 
 ```bash
 omarchy restart tmux
 ```
 
-### Ingest current live tmux setup into repo
-
-Run from repo root:
+## Mac setup
 
 ```bash
-mkdir -p omarchy/tmux omarchy/.local/bin omarchy/.local/share/tmux omarchy/zsh
+mkdir -p ~/.config/aerospace ~/.config/tmux
 
-cp ~/.config/tmux/tmux.conf omarchy/tmux/tmux.conf
-cp ~/.local/bin/tmux-tdl-pane omarchy/.local/bin/tmux-tdl-pane
-cp ~/.local/bin/tmux-tdl-ui omarchy/.local/bin/tmux-tdl-ui
-cp ~/.local/share/tmux/help.md omarchy/.local/share/tmux/help.md
-cp ~/.zshrc omarchy/zsh/zshrc
-```
+cp mac/aerospace/aerospace.toml ~/.config/aerospace/aerospace.toml
+cp mac/tmux/tmux.conf ~/.config/tmux/tmux.conf
+cp mac/tmux/help.md ~/.config/tmux/help.md
+cp -r mac/tmux/scripts ~/.config/tmux/scripts
+cp mac/zsh/zshrc ~/.zshrc
 
-Then commit.
-
-## Neovim setup
-
-Run from the repo root:
-
-```bash
-mkdir -p ~/.config
-mv ~/.config/nvim ~/.config/nvim.bak.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
-cp -r omarchy/nvim ~/.config/nvim
+chmod +x ~/.config/tmux/scripts/tmux-tdl-pane ~/.config/tmux/scripts/tmux-tdl-ui
 ```

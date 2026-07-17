@@ -1,0 +1,273 @@
+# ~/.zshrc - portable macOS + Omarchy/Linux shell config
+# Source of truth intended for dxc-managed dotfiles.
+
+# If not running interactively, don't do anything.
+[[ $- != *i* ]] && return
+
+# ----- Completion ---------------------------------------------------------
+if command -v fzf >/dev/null 2>&1; then
+  source <(fzf --zsh)
+fi
+
+autoload -Uz compinit
+compinit -d "${XDG_CACHE_HOME:-$HOME/.cache}/zsh/zcompdump"
+
+# Use menu selection and make it case-insensitive.
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+[[ -n "$LS_COLORS" ]] && zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+
+# ----- Vi mode ------------------------------------------------------------
+bindkey -v
+bindkey -M viins '^?' backward-delete-char
+
+# ----- Optional zsh plugins ----------------------------------------------
+# Autosuggestions: support Homebrew and common Arch/Linux package locations.
+for plugin in \
+  /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh \
+  /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh \
+  /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+ do
+  [[ -f "$plugin" ]] && source "$plugin" && break
+done
+
+ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+
+# Ctrl+O: accept one word from suggestion / move forward by word.
+bindkey -M viins '^O' forward-word
+bindkey -M vicmd '^O' vi-forward-word
+
+# Ctrl+P: accept full autosuggestion, if plugin is loaded.
+if (( $+widgets[autosuggest-accept] )); then
+  bindkey -M viins '^P' autosuggest-accept
+  bindkey -M vicmd '^P' autosuggest-accept
+fi
+
+# ----- OS detection -------------------------------------------------------
+case "$OSTYPE" in
+  darwin*) DXC_OS="mac" ;;
+  linux*)  DXC_OS="linux" ;;
+  *)       DXC_OS="unknown" ;;
+esac
+
+# ----- Paths --------------------------------------------------------------
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+
+# pnpm
+if [[ "$DXC_OS" == "mac" ]]; then
+  export PNPM_HOME="$HOME/Library/pnpm"
+else
+  export PNPM_HOME="$HOME/.local/share/pnpm"
+fi
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+
+# opencode
+[[ -d "$HOME/.opencode/bin" ]] && export PATH="$HOME/.opencode/bin:$PATH"
+
+# Go
+if command -v go >/dev/null 2>&1; then
+  GOPATH_BIN="$(go env GOPATH 2>/dev/null)/bin"
+  [[ -d "$GOPATH_BIN" ]] && export PATH="$PATH:$GOPATH_BIN"
+fi
+
+# NVM
+export NVM_DIR="$HOME/.nvm"
+[[ -s "$NVM_DIR/nvm.sh" ]] && . "$NVM_DIR/nvm.sh"
+[[ -s "$NVM_DIR/bash_completion" ]] && . "$NVM_DIR/bash_completion"
+
+# ----- Editor -------------------------------------------------------------
+export EDITOR="nvim"
+export VISUAL="$EDITOR"
+
+# ----- Aliases: utilities -------------------------------------------------
+if command -v eza >/dev/null 2>&1; then
+  alias ls="eza --icons=auto --group-directories-first"
+  alias lsa="eza -a --icons=auto --group-directories-first"
+  alias lsh="eza -lh --icons=auto --group-directories-first"
+elif [[ "$DXC_OS" == "mac" ]]; then
+  alias ls="ls -G"
+  alias lsa="ls -a"
+  alias lsh="ls -lh"
+else
+  alias ls="ls --color=auto"
+  alias lsa="ls -a --color=auto"
+  alias lsh="ls -lh --color=auto"
+fi
+
+alias ff="fastfetch"
+alias cc="clear"
+alias bt="btop"
+alias x="exit"
+
+if command -v bat >/dev/null 2>&1; then
+  alias cat="bat"
+  alias cat-old="command cat"
+fi
+
+alias r="ranger"
+alias cd-="cd -"
+alias cdb="cd .."
+alias lad="lazydocker"
+alias lag="lazygit"
+
+# Power controls.
+if [[ "$DXC_OS" == "mac" ]]; then
+  alias sd="sudo shutdown -h now"
+  alias rn="sudo reboot now"
+else
+  alias sd="systemctl poweroff"
+  alias rn="systemctl reboot"
+fi
+
+# zsh config helpers.
+alias reload="source ~/.zshrc"
+alias econf="nvim ~/.zshrc"
+alias conf="bat ~/.zshrc"
+
+# ----- Aliases: git -------------------------------------------------------
+alias gcl="git clone"
+alias gi="git init"
+alias gs="git status"
+alias gbr="git branch"
+alias gbrd="git branch -d"
+alias gbrD="git branch -D"
+alias gbrm="git branch -m"
+alias gcb="git checkout -b"
+alias gcm="git checkout main"
+alias gc="git checkout"
+alias pullm="git pull origin main"
+alias pullma="git pull origin master"
+alias pull="git pull origin"
+alias pu="git push -u origin"
+alias pum="git push -u origin main"
+alias puma="git push -u origin master"
+alias ga="git add ."
+alias gcom="git commit -m"
+alias grc="git rebase --continue"
+alias gra="git rebase --abort"
+alias gl="git log"
+alias glo="git log --oneline"
+alias gls="git ls-files"
+alias grem="git remote -v"
+alias grao="git remote add origin"
+alias gres="git restore"
+alias gconf="git config --global -l"
+
+# ----- Aliases: terminal tools -------------------------------------------
+alias t="tmux"
+alias ta="tmux attach"
+alias ts="tmux ls"
+alias tkill="tmux kill-server"
+alias zj="zellij"
+alias nv="nvim"
+alias nconf="nvim ~/.config/nvim/init.lua"
+
+# Omarchy-style tmux dev layout.
+# Outside tmux: create/attach a project session and bootstrap the layout.
+# Inside tmux: create the agent + servers windows.
+td() {
+  local current_dir="${PWD}"
+  local project_name session_name
+  local pi_pane servers_left_pane
+
+  project_name="$(basename "$current_dir")"
+  session_name="$(printf '%s' "$project_name" | tr '.:' '--')"
+
+  if [[ -z $TMUX ]]; then
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+      tmux attach -t "$session_name"
+    else
+      tmux new-session -d -s "$session_name" -c "$current_dir"
+      tmux send-keys -t "$session_name" "td" C-m
+      tmux attach -t "$session_name"
+    fi
+    return
+  fi
+
+  # Use TMUX_PANE for the pane we're running in (stable even if active window changes).
+  # This pane becomes the full agent window.
+  pi_pane="$TMUX_PANE"
+
+  # Window 1: pure pi coding-agent workspace.
+  tmux rename-window -t "$pi_pane" "${project_name}-agent"
+  tmux set-option -pt "$pi_pane" @tdl_role pi
+
+  # Window 2: server workspace, split left/right with plain shells.
+  servers_left_pane=$(tmux new-window -d -n "${project_name}-servers" -c "$current_dir" -P -F '#{pane_id}')
+  tmux split-window -h -p 50 -t "$servers_left_pane" -c "$current_dir"
+
+  # Launch pi in the agent window and focus it.
+  tmux send-keys -t "$pi_pane" "pi" C-m
+  tmux select-pane -t "$pi_pane"
+}
+
+# ----- Aliases: AI tools --------------------------------------------------
+alias gem="gemini"
+alias ca="cursor-agent"
+alias oc="opencode"
+alias cod="codex"
+alias cl="claude"
+alias co="claude --model moonshotai/kimi-k2.5"
+alias pir='pi --startup-command "/telescope sessions"'
+alias pim="pi --muon-mode build"
+alias pis="pi --muon-mode spec"
+
+# ----- Aliases: package/dev tools ----------------------------------------
+alias pd="pnpm dev"
+alias pins="pnpm install"
+alias pab="pnpm approve-builds"
+alias pa="pnpm add"
+alias pl="pnpm list"
+alias plint="pnpm run lint"
+alias pbuild="pnpm run build"
+
+alias uvi="uv init"
+alias uvv="uv venv"
+alias uvs="uv sync"
+alias uva="source .venv/bin/activate"
+alias uvd="deactivate"
+
+alias jpn="jupyter notebook"
+
+alias carn="cargo new"
+alias carr="cargo run"
+
+# Homebrew/mac helpers.
+if [[ "$DXC_OS" == "mac" ]]; then
+  alias brundle="brew bundle --file=~/Brewfile"
+  alias ebrew="nvim ~/Brewfile"
+fi
+
+# Narval SSH tunnel.
+alias njl="ssh -N -L 8901:127.0.0.1:8901 zlam5@narval.alliancecan.ca"
+
+# ----- Prompt -------------------------------------------------------------
+autoload -Uz vcs_info
+precmd() { vcs_info }
+zstyle ':vcs_info:git:*' formats '(%b)'
+setopt PROMPT_SUBST
+PROMPT='%F{cyan}%~%f %F{yellow}${vcs_info_msg_0_}%f $ '
+
+# ----- Shell integrations -------------------------------------------------
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init zsh --cmd cd)"
+fi
+
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+
+# Docker/Colima, mac only. Uncomment if needed.
+# [[ "$DXC_OS" == "mac" ]] && export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+
+# Syntax highlighting should be sourced last.
+for plugin in \
+  /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+  /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
+  /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+ do
+  [[ -f "$plugin" ]] && source "$plugin" && break
+done
